@@ -23,8 +23,7 @@ for year in years:
 #               'flaubert/flaubert_base_cased', 'flaubert/flaubert_large_cased']
 modelname = 'flaubert/flaubert_base_uncased'
 
-tokenizer = FlaubertTokenizer.from_pretrained( modelname, do_lowercase=False)
-
+tokenizer = FlaubertTokenizer.from_pretrained(modelname, do_lowercase=False)
 
 
 # Create PyTorch Dataset
@@ -50,21 +49,26 @@ train_encoded_data = tokenizer([str(text) for text in train_texts], padding=True
 test_encoded_data = tokenizer([str(text) for text in test_texts], padding=True, truncation=True, return_tensors="pt")
 
 train_dataset = ApplicationDataset(train_encoded_data, train_scores)
+test_dataset = ApplicationDataset(test_encoded_data, test_scores)
 
 # Model and DataLoader
 model = FlaubertForSequenceClassification.from_pretrained(modelname, num_labels=1)
 
-train_loader = DataLoader(train_dataset, batch_size=32)
+train_loader = DataLoader(train_dataset, batch_size=8)
+test_loader = DataLoader(test_dataset, batch_size=8)
 
 # Training loop
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+mps_available = hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
+device = 'cuda' if torch.cuda.is_available() else 'mps' if mps_available else 'cpu'
+
 model.to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=3e-5)
 num_epochs = 3
 
 for epoch in range(num_epochs):
-    print('epoch {0}'.format(epoch))
+    # Train the model
     model.train()
+    train_loss = 0
     for batch in tqdm(train_loader):
         inputs = {key: val.to(device) for key, val in batch.items() if key != 'labels'}
         labels = batch['labels'].to(device)
@@ -73,4 +77,23 @@ for epoch in range(num_epochs):
         loss = torch.nn.MSELoss()(outputs.logits.squeeze(-1), labels)
         loss.backward()
         optimizer.step()
+        train_loss += loss.item()
+
+    train_loss /= len(train_loader)
+
+    # Evaluate the model
+    model.eval()
+    validation_loss = 0
+    with torch.no_grad():
+        for batch in tqdm(test_loader):
+            inputs = {key: val.to(device) for key, val in batch.items() if key != 'labels'}
+            labels = batch['labels'].to(device)
+            outputs = model(**inputs)
+            loss = torch.nn.MSELoss()(outputs.logits.squeeze(-1), labels)
+            validation_loss += loss.item()
+
+    validation_loss /= len(test_loader)
+
+    print(f"Epoch: {epoch + 1}/{num_epochs}, Training Loss: {train_loss:.4f}, Validation Loss: {validation_loss:.4f}")
+
 torch.save(model.state_dict(), "data/processed/model_state.pth")

@@ -5,8 +5,6 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset, DataLoader
 from transformers import FlaubertTokenizer, FlaubertForSequenceClassification
 
-from train import ApplicationDataset
-
 # Read data from multiple Excel files
 years = [2022]  # range(2015, 2023)  # Update the range according to your data
 texts, scores = [], []
@@ -26,34 +24,45 @@ modelname = 'flaubert/flaubert_base_uncased'
 
 tokenizer = FlaubertTokenizer.from_pretrained(modelname, do_lowercase=False)
 
-
-
 # Train-test split
 train_texts, test_texts, train_scores, test_scores = train_test_split(texts, scores, test_size=0.2, random_state=42)
 
 # Encode the texts
 test_encoded_data = tokenizer([str(text) for text in test_texts], padding=True, truncation=True, return_tensors="pt")
 
+
+class ApplicationDataset(Dataset):
+    def __init__(self, encoded_data, scores):
+        self.encoded_data = encoded_data
+        self.scores = scores
+
+    def __len__(self):
+        return len(self.scores)
+
+    def __getitem__(self, idx):
+        item = {key: val[idx].clone().detach() for key, val in self.encoded_data.items()}
+        item['labels'] = torch.tensor(self.scores[idx], dtype=torch.float)
+        return item
+
+
 test_dataset = ApplicationDataset(test_encoded_data, test_scores)
 
 # Model and DataLoader
+mps_available = hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
+device = 'cuda' if torch.cuda.is_available() else 'mps' if mps_available else 'cpu'
+# Initialize a new model with the same architecture
 model = FlaubertForSequenceClassification.from_pretrained(modelname, num_labels=1)
 
-test_loader = DataLoader(test_dataset, batch_size=32)
-
-# Training loop
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
 model.to(device)
-
 # Load the saved model state
 state_dict = torch.load("data/processed/model_state.pth")
-
-# Initialize a new model with the same architecture and load the state
-model = FlaubertForSequenceClassification.from_pretrained('flaubert-base-cased', num_labels=1)
 model.load_state_dict(state_dict)
+model.to(device)
+
 # Evaluation
 model.eval()
 predictions, true_labels = [], []
+test_loader = DataLoader(test_dataset, batch_size=8)
 with torch.no_grad():
     for batch in test_loader:
         inputs = {key: val.to(device) for key, val in batch.items() if key != 'labels'}
