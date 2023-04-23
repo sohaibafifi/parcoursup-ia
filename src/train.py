@@ -70,11 +70,10 @@ for epoch in range(num_epochs):
     model.train()
     train_loss = 0
     for batch in tqdm(train_loader):
-        inputs = {key: val.to(device) for key, val in batch.items() if key != 'labels'}
-        labels = batch['labels'].to(device)
+        inputs = {key: val.to(device) for key, val in batch.items()}
         optimizer.zero_grad()
         outputs = model(**inputs)
-        loss = torch.nn.MSELoss()(outputs.logits.squeeze(-1), labels)
+        loss = outputs.loss
         loss.backward()
         optimizer.step()
         train_loss += loss.item()
@@ -86,10 +85,9 @@ for epoch in range(num_epochs):
     validation_loss = 0
     with torch.no_grad():
         for batch in tqdm(test_loader):
-            inputs = {key: val.to(device) for key, val in batch.items() if key != 'labels'}
-            labels = batch['labels'].to(device)
+            inputs = {key: val.to(device) for key, val in batch.items()}
             outputs = model(**inputs)
-            loss = torch.nn.MSELoss()(outputs.logits.squeeze(-1), labels)
+            loss = outputs.loss
             validation_loss += loss.item()
 
     validation_loss /= len(test_loader)
