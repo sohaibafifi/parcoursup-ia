@@ -29,7 +29,12 @@ pip install -r requirements.txt
 
 Placez vos données brutes dans le répertoire data/raw/. (un fichier excel avec deux colonnes, motivations et scores)
 Mettez à jour le script src/main.py pour charger et prétraiter vos données.
-Exécutez le script principal pour entraîner et évaluer le modèle :
+Exécutez le script principal pour entraîner le modèle : 
 ```
-python src/main.py
+python src/train.py
+```
+
+Exécutez le script principal pour évaluer le modèle : 
+```
+python src/eval.py
 ```
