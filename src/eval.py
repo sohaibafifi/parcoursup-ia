@@ -50,8 +50,7 @@ class ApplicationDataset(Dataset):
 test_dataset = ApplicationDataset(test_encoded_data, scores, codes)
 
 # Model and DataLoader
-mps_available = hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
-device = 'cuda' if torch.cuda.is_available() else 'mps' if mps_available else 'cpu'
+device = 'cpu'
 # Initialize a new model with the same architecture
 model = FlaubertForSequenceClassification.from_pretrained(modelname, num_labels=1)
 
@@ -59,22 +58,22 @@ model.to(device)
 # Load the saved model state
 state_dict = torch.load("data/processed/model_state.pth")
 model.load_state_dict(state_dict)
-model.to(device)
 
 # Evaluation
 model.eval()
 predictions = []
-test_loader = DataLoader(test_dataset, batch_size=8)
+test_loader = DataLoader(test_dataset, batch_size=1)
 results = {}
 with torch.no_grad():
     for batch in tqdm(test_loader):
-        print(batch.keys())
         inputs = {key: val.to(device) for key, val in batch.items() if key != 'labels' and key != 'codes'}
         outputs = model(**inputs)
         codes = batch['codes']
         results.update({code: prediction for code, prediction in zip(codes.tolist(), outputs.logits.squeeze(-1).tolist())})
 
+    results = dict(sorted(results.items(), key=lambda x:x[1]))
     for code, score in results.items() :
         print('{} => {}'.format(code, score))
+
 # ...
 
