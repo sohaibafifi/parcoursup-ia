@@ -1,51 +1,24 @@
-import pandas as pd
 import torch
-from sklearn.metrics import mean_squared_error
-from sklearn.model_selection import train_test_split
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import FlaubertTokenizer, FlaubertForSequenceClassification
 
+from ApplicationDataset import ApplicationDataset, read_files
+
 # Read data from multiple Excel files
 years = [2023]  # range(2015, 2023)  # Update the range according to your data
-texts, scores, codes  = [], [], []
-
-for year in years:
-    excel_file = f'data/raw/applications_{year}.xlsx'
-    df = pd.read_excel(excel_file)
-
-    # Assume the Excel file has two columns: 'motivations' and 'score'
-    texts.extend(df['motivations'].tolist())
-    scores.extend(df['score'].tolist())
-    codes.extend(df['code'].tolist())
+texts, scores, codes  = read_files(years)
 
 # Pre-process the data
 # Choose among ['flaubert/flaubert_small_cased', 'flaubert/flaubert_base_uncased',
 #               'flaubert/flaubert_base_cased', 'flaubert/flaubert_large_cased']
 modelname = 'flaubert/flaubert_base_uncased'
 
-tokenizer = FlaubertTokenizer.from_pretrained(modelname, do_lowercase=False)
+tokenizer = FlaubertTokenizer.from_pretrained(modelname, do_lowercase=True)
 
 
 # Encode the texts
 test_encoded_data = tokenizer([str(text) for text in texts], padding=True, truncation=True, return_tensors="pt")
-
-
-class ApplicationDataset(Dataset):
-    def __init__(self, encoded_data, scores, codes):
-        self.encoded_data = encoded_data
-        self.scores = scores
-        self.codes = codes
-
-    def __len__(self):
-        return len(self.scores)
-
-    def __getitem__(self, idx):
-        item = {key: val[idx].clone().detach() for key, val in self.encoded_data.items()}
-        item['labels'] = torch.tensor(self.scores[idx], dtype=torch.float)
-        item['codes'] = torch.tensor(self.codes[idx], dtype=torch.int32)
-        return item
-
 
 test_dataset = ApplicationDataset(test_encoded_data, scores, codes)
 

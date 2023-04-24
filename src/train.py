@@ -6,39 +6,19 @@ from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 from transformers import FlaubertTokenizer, FlaubertForSequenceClassification
 
+from ApplicationDataset import ApplicationDataset, read_files
+
 # Read data from multiple Excel files
 years = [2022]  # range(2015, 2023)  # Update the range according to your data
-texts, scores = [], []
+texts, scores, codes  = read_files(years)
 
-for year in years:
-    excel_file = f'data/raw/applications_{year}.xlsx'
-    df = pd.read_excel(excel_file)
-
-    # Assume the Excel file has two columns: 'motivations' and 'score'
-    texts.extend(df['motivations'].tolist())
-    scores.extend(df['score'].tolist())
 
 # Pre-process the data
 # Choose among ['flaubert/flaubert_small_cased', 'flaubert/flaubert_base_uncased',
 #               'flaubert/flaubert_base_cased', 'flaubert/flaubert_large_cased']
 modelname = 'flaubert/flaubert_base_uncased'
 
-tokenizer = FlaubertTokenizer.from_pretrained(modelname, do_lowercase=False)
-
-
-# Create PyTorch Dataset
-class ApplicationDataset(Dataset):
-    def __init__(self, encoded_data, scores):
-        self.encoded_data = encoded_data
-        self.scores = scores
-
-    def __len__(self):
-        return len(self.scores)
-
-    def __getitem__(self, idx):
-        item = {key: val[idx].clone().detach() for key, val in self.encoded_data.items()}
-        item['labels'] = torch.tensor(self.scores[idx], dtype=torch.float)
-        return item
+tokenizer = FlaubertTokenizer.from_pretrained(modelname, do_lowercase=True)
 
 
 # Train-test split
